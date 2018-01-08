@@ -16,7 +16,7 @@
 # % end
 # % Xlag=Xlag(:,:)
 
-mlag2 <- function(X, p) {
+mlag2 <- function(X, p) { 
     
     Traw <- dim(X)[1]
     N <- dim(X)[2]
