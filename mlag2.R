@@ -25,6 +25,8 @@ mlag2 <- function(X, p) {
     colnames(Xlag) <- names(X)
     
     for (i in seq_along(p)) {
-        Xlag[(p + 1):Traw, (N * (i - 1) + 1):(N * i)] <- X[(p + 1 -i):(Traw - i), 1:N]
+        Xlag[(p + 1):Traw, (N * (i - 1) + 1):(N * i)] <- X[(p + 1 - i):(Traw - i), 1:N]
+        
     }
+    
 }
