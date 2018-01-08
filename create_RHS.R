@@ -28,7 +28,7 @@ create_RHS <- function(YY, M, p, t) {
         for (j in seq_along(p)) {
             
             xtemp <- YY[i, ((j - 1) * M + 1):(j * M)]
-            xtemp <- kronecker(diag(M),xtemp)
+            xtemp <- kronecker(diag(M), xtemp)
             ztemp <- cbind(ztemp, xtemp)
             
         }
