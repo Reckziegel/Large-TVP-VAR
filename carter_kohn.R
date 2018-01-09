@@ -87,22 +87,3 @@ carter_kohn <-  function(y, Z, R, Qt, m, p, t, B0, V0) {
     }
     bdraw <- t(bdraw)
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
