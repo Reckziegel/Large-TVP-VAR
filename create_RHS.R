@@ -18,23 +18,16 @@
 create_RHS <- function(YY, M, p, t) {
     
     K <- M + p * (M ^ 2) # K is the number of elements in the state vector
+    x_t <- matrix(data = 0, nrow = (t - p) * M, ncol = K) # repeat (t-p)*M 'K' times
     
-    x_t <- rep((t - p) * M, K) # repeat (t-p)*M 'K' times
-    
-    for (i in seq_along(t - p)) {
-        
+    for (i in seq(from = 1, to = t - p, by = 1)) {
         ztemp <- diag(M)
-        
         for (j in seq_along(p)) {
-            
             xtemp <- YY[i, ((j - 1) * M + 1):(j * M)]
-            xtemp <- kronecker(diag(M), xtemp)
+            xtemp <- t(kronecker(diag(M), xtemp))
             ztemp <- cbind(ztemp, xtemp)
-            
         }
-        
-        x_t[((i - 1) * M + 1):(i * M), ] <- ztemp
-        
+        x_t[ ((i - 1) * M + 1):(i * M), ] <- ztemp
     }
-    
+    return(x_t)
 }
