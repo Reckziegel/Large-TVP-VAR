@@ -29,5 +29,5 @@ create_RHS <- function(YY, M, p, t) {
         }
         x_t[ ((i - 1) * M + 1):(i * M), ] <- ztemp
     }
-    return(x_t)
+    return(x_t) 
 }
