@@ -77,7 +77,7 @@ Minn_prior_LITT <- function(Y, Ylag, alpha, bar, gamma, M, p, K, t) {
     p_MIN <- p
     sigma_sq <- matrix(data = 0, nrow = M, ncol = 1) # vector to store residual variances
 
-    for (i in seq_along(M)) {
+    for (i in 1:M) {
         Ylag_i <- Ylag
         X_i <- cbind(matrix(data = 1, nrow = t - p_MIN + p, ncol = 1),  Ylag_i[ , seq(i, M * p_MIN, M)])
         Y_i = Y[ , i]
@@ -93,19 +93,19 @@ Minn_prior_LITT <- function(Y, Ylag, alpha, bar, gamma, M, p, K, t) {
     
     # index in each equation which are the own lags
     ind <- matrix(data = 0, nrow = M, ncol = p)
-    for (i in seq_along(M)) {
+    for (i in 1:M) {
         ind[i, ] <- seq(i + 1, K / M, M)
     }
     
-    for (i in seq_along(M)) {        # for each i-th equation
-        for (j in seq_along(K/M)) {  # for each j-th RHS variable   
-            if (j == 1) {            # if there is constant, use this code
+    for (i in 1:M) {            # for each i-th equation
+        for (j in 1:(K / M)) {  # for each j-th RHS variable   
+            if (j == 1) {       # if there is constant, use this code
                 V_i[j, i] <- alpha_bar %*% sigma_sq[i, 1] # variance on intercept               
             } else if (which(j == ind[i, ]) > 0) {
                 V_i[j, i] <- gamma / ((ceiling(j - 1) / M) ^ 2) # variance on own lags
                 # Note: the "ceiling((j-1)/M)" command finds the associated lag number for each parameter
             } else {
-                for (kj in seq_along(M)) {
+                for (kj in 1:M) {
                     if (which(j == ind[kj, ]) > 0) {
                         ll <- kj
                     }
@@ -121,4 +121,5 @@ Minn_prior_LITT <- function(Y, Ylag, alpha, bar, gamma, M, p, K, t) {
     # this is the prior variance of the vector alpha
     V_prior <- diag(c(matrix(data = V_i_T, nrow = nrow(V_i_T), byrow = TRUE)))  
     Sigma_0 <- diag(sigma_sq, nrow = length(sigma_sq))
+    
 }
