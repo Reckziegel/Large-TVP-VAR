@@ -46,31 +46,20 @@ Minn_prior_KOOP <- function(alpha_bar, gamma, M, p, K) {
     # elements of the covariance matrix, in each of the M equations.
     V_i <- matrix(data = 0, nrow = K / M, ncol = M)
     
-    for (i in seq_along(M)) {          # for each i-th equation
-        
-        for (j in seq_along(K / M)) {  # for each j-th RHS variable   
-        
-            if (j == 1) {              # if there is constant, use this code
-            
-                    V_i[j, i] <- alpha_bar # variance on intercept               
-            
+    for (i in 1:M) {                       # for each i-th equation
+        for (j in 1:(K / M)) {             # for each j-th RHS variable
+            if (j == 1) {                  # if there is constant, use this code
+                    V_i[j, i] <- alpha_bar # variance on intercept
             } else {
-            
-                V_i[j, i] = gamma / ((ceiling((j - 1) / M)) ^ 2) # variance on own lags           
+                V_i[j, i] <- gamma / ((ceiling((j - 1) / M)) ^ 2) # variance on own lags           
                 # Note: 
                 # the "ceil((j-1)/M^2)" command finds the associated lag number for each parameter         
             }
-    
         }
-    
     }
-    
     # Now V (MINNESOTA VARIANCE) is a diagonal matrix with diagonal elements the V_i'  
     V_i_T <-  t(V_i)
     V_prior <- diag(V_i_T)  # this is the prior variance of the vector alpha
     # This last command is wrong for sure. I will verify how to fix it latter.
 }
-
-
-
 
