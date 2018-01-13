@@ -103,19 +103,18 @@ transx <- function(x, tcode) {
     relvarq <- 0.000625     #HP parameter
     # 0.00000075 for monthly data
     # 0.000625   for quarterly data, see Harvey/Jeager (1993), page 234 @
+    x <- as.matrix(x)
     n <- nrow(x)
     y <- matrix(data = 0, nrow = nrow(x), ncol = ncol(x))       # storage space for y
-    
-    x <- as.matrix(x)
-    
+ 
     if (tcode == 1) {
         y <- x
         y
     } else if (tcode == 2) {
-        y[2:n, ] <- x[2:n, ] - x[1:(n - 1), ]
+        y[2:n] <- x[2:n] - x[1:(n - 1)]
         y
     } else if (tcode == 3) {
-        y[3:n, ] <- x[3:n, ] - 2 * x[2:(n - 1), ] + x[1:(n - 2), ]
+        y[3:n] <- x[3:n] - 2 * x[2:(n - 1)] + x[1:(n - 2)]
         y
     } else if (tcode == 4) {
         if (min(x) < small) {
@@ -129,14 +128,14 @@ transx <- function(x, tcode) {
             y <- NaN
         }
         x <- log(x)
-        y[2:n, ] <- x[2:n, ] - x[1:(n - 1), ]
+        y[2:n] <- x[2:n] - x[1:(n - 1)]
         y
     } else if (tcode == 6) {
         if (min(x) < small) {
             y <- NaN 
         }
         x <- log(x)
-        y[3:n, ] <- x[3:n, ] - 2 * x[2:(n - 1), ] + x[1:(n - 2), ]
+        y[3:n] <- x[3:n] - 2 * x[2:(n - 1)] + x[1:(n - 2)]
         y
     } else if (tcode == 7) {
         if (min(x) < small) {
@@ -146,8 +145,8 @@ transx <- function(x, tcode) {
         y <- matrix(data = 0, nrow = nrow(x), ncol = ncol(x))
         filtro_HP <- vector(mode = 'list', length = ncol(x))
         for (i in 1:ncol(x)) {
-            filtro_HP[[i]] <- mFilter::hpfilter(x[ , i], freq = 1600, type = 'lambda')
-            y[, i] <- filtro_HP[[i]]$cycle
+            filtro_HP[[i]] <- hpfilter(x, freq = 1600, type = 'lambda')
+            y[i] <- filtro_HP[[i]]$cycle
         }
         y
         #tl <- filtro_HP$trend
@@ -160,8 +159,8 @@ transx <- function(x, tcode) {
         y <- matrix(data = 0, nrow = nrow(x), ncol = ncol(x))
         filtro_HP <- vector(mode = 'list', length = ncol(x))
         for (i in 1:ncol(x)) {
-            filtro_HP[[i]] <- mFilter::hpfilter(x[ , i], freq = 1600, type = 'lambda')
-            y[, i] <- filtro_HP[[i]]$cycle
+            filtro_HP[[i]] <- hpfilter(x, freq = 1600, type = 'lambda')
+            y[i] <- filtro_HP[[i]]$cycle
         }
         y
         #tl <- filtro_HP$trend
@@ -171,14 +170,14 @@ transx <- function(x, tcode) {
             y <- NaN 
         }
         x <- log(x)
-        y[3:n, ] <- x[3:n, ] - 2 * x[2:(n - 1), ] + x[1:(n - 2), ]
+        y[3:n] <- x[3:n] - 2 * x[2:(n - 1)] + x[1:(n - 2)]
         y
     } else if (tcode == 17) {
         if (min(x) < small) {
             y = NaN 
         }
         x <- log(x)
-        y[14:n, ] <- x[14:n, ] - x[13:(n - 1), ] - x[2:(n - 12), ] + x[1:(n - 13), ]
+        y[14:n] <- x[14:n] - x[13:(n - 1)] - x[2:(n - 12)] + x[1:(n - 13)]
         y
     } else {
         y <- NaN
