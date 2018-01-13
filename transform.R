@@ -12,7 +12,11 @@ transform <- function(ydata, tcode, yearlab) {
     # This code corrects the number of observations lost from transformations
     Yraw <- 0 * ydata
     for (i in 1:ncol(ydata)) {
-        Yraw[ , i] <- transx(ydata[ , i], tcode[i])
+        Yraw[ , i] <- transx(ydata[ , i], tcode)
     }
+    
+    out <- list(Yraw = Yraw, yearlab = yearlab)
+    return(out)
+
 }
 
