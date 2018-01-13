@@ -18,13 +18,14 @@
 
 mlag2 <- function(X, p) { 
     
-    Traw <- dim(X)[1]
-    N <- dim(X)[2]
+    Traw <- nrow(X)
+    N <- ncol(X)
     
     Xlag <- matrix(data = 0, nrow = Traw, ncol = N * p)
     colnames(Xlag) <- names(X)
     
-    for (i in seq(from = 1, to = p, by = 1)) {
+    for (i in 1:p) {
         Xlag[(p + 1):Traw, (N * (i - 1) + 1):(N * i)] <- X[(p + 1 - i):(Traw - i), 1:N]
     }
+    return(Xlag)
 }
