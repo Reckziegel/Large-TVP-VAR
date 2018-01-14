@@ -55,25 +55,23 @@
 # % Now V (MINNESOTA VARIANCE) is a diagonal matrix with diagonal elements the V_i'  
 # V_i_T = V_i';
 # V_prior = single(diag(V_i_T(:)));  % this is the prior variance of the vector alpha
-# 
 # Sigma_0 = single(diag(sigma_sq));
 
-Minn_prior_LITT <- function(Y, Ylag, alpha, bar, gamma, M, p, K, t) {
+Minn_prior_LITT <- function(Y, Ylag, alpha_bar, gamma, M, p, K, t) {
     
     # 1. Minnesota Mean on VAR regression coefficients
-    A_prior <- t(rbind(c(matrix(data = 0, nrow = 1, ncol = M), 
-                         0 * diag(M), 
-                         matrix(data = 0, nrow = (p - 1) * M, ncol = M))
-                        ))
+    A_prior <- t(matrix(data = c(matrix(data = 0 , nrow = 1, ncol = M),  
+                                 0 * diag(M), 
+                                 matrix(data = 0, nrow = (p - 1) * M, ncol = M)), 
+                        ncol = M, 
+                        byrow = TRUE))
     # A_prior = [mean(Y(1:40,:)); 0.9*eye(M); zeros((p-1)*M,M)]';
     # A_prior = [zeros(1,M) ; 0.9*repmat(eye(M),p,1)]';
-    a_prior <- matrix(data = A_prior, ncol = 1)
+    a_prior <- as.vector(A_prior)
     
     # 2. Minnesota Variance on VAR regression coefficients
-    # Now get residual variances of univariate p-lag autoregressions. Here
-    # we just run the AR(p) model on each equation, ignoring the constant
-    # and exogenous variables (if they have been specified for the original
-    # VAR model)
+    # Now get residual variances of univariate p-lag autoregressions. Here we just run the AR(p) model on each equation,
+    # ignoring the constant and exogenous variables (if they have been specified for the original VAR model)
     p_MIN <- p
     sigma_sq <- matrix(data = 0, nrow = M, ncol = 1) # vector to store residual variances
 
@@ -96,7 +94,6 @@ Minn_prior_LITT <- function(Y, Ylag, alpha, bar, gamma, M, p, K, t) {
     for (i in 1:M) {
         ind[i, ] <- seq(i + 1, K / M, M)
     }
-    
     for (i in 1:M) {            # for each i-th equation
         for (j in 1:(K / M)) {  # for each j-th RHS variable   
             if (j == 1) {       # if there is constant, use this code
@@ -111,7 +108,7 @@ Minn_prior_LITT <- function(Y, Ylag, alpha, bar, gamma, M, p, K, t) {
                     }
                 }
                 # variance on other lags
-                V_i[j, i] <- (gamma %*% sigma_sq(i,1)) / (((ceiling(j - 1) / M) ^ 2) %*% sigma_sq(ll, 1))
+                V_i[j, i] <- (gamma %*% sigma_sq[i, 1]) / (((ceiling(j - 1) / M) ^ 2) %*% sigma_sq(ll, 1))
             }
         }
     }
@@ -119,7 +116,10 @@ Minn_prior_LITT <- function(Y, Ylag, alpha, bar, gamma, M, p, K, t) {
     # Now V (MINNESOTA VARIANCE) is a diagonal matrix with diagonal elements the V_i'  
     V_i_T <- t(V_i)
     # this is the prior variance of the vector alpha
-    V_prior <- diag(c(matrix(data = V_i_T, nrow = nrow(V_i_T), byrow = TRUE)))  
-    Sigma_0 <- diag(sigma_sq, nrow = length(sigma_sq))
+    V_prior <-  diag(as.vector(V_i_T))  
+    Sigma_0 <- diag(sigma_sq)
+    
+    out <- list(a_prior = a_prior, V_prior = V_prior, Sigma_0 = Sigma_0)
+    return(out)
     
 }
