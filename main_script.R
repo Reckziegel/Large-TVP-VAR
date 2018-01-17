@@ -1,128 +1,115 @@
-
-# TVP_VAR_DPS_DMA_h1.m - Forecasting with Large TVP-VAR using forgetting factors
-# MULTIPLE MODEL CASE / DYNAMIC PRIOR SELECTION (DPS) AND DYNAMIC MODEL AVERAGING (DMA)
-#
-# The model is:
-#
-#	 y[t] = theta[t] x[t] + e[t]
-#	 theta[t] = theta[t-1] + u[t]
-#
-# where x[t] = I x (y[t-1],...,y[t-p]) (Kronecker product), and e[t]~N(0,V[t])
-# and u[t]~N(0,Q[t]).
-#
-# Additionally:
-#
-#  V[t] = kappa V[t-1] + (1-kappa) e[t-1]e[t-1]'
-#  Q[t] = (1 - 1/lambda) S[t-1|t-1]
-#
-# This code estimates lambda and allows it to be time-varying. The specification is:
-#
-#  lambda[t] = lambda[min] + (1-lambda[min]) LL^(e[t]e[t]')
-#
-#  - This code allows to calculate ONLY iterated forecasts
-#  - This new version does analytical forecasting only for h=1
-#  - This code "online" forecasting, i.e. the Minnesota prior should not be
-#  dependent on the data, so that the Kalman filter runs once for 1:T.
-
 #-------------------------------PRELIMINARIES--------------------------------------
-forgetting = 1     # 1: use constant factor 2: use variable factor
-
-lambda = 0.99      # Forgetting factor for the state equation variance
-kappa = 0.96       # Decay factor for measurement error variance
-
-eta = 0.99         # Forgetting factor for DPS (dynamic prior selection) and DMA
+forgetting <- 1     # 1: use constant factor 2: use variable factor
+lambda <- 0.99      # Forgetting factor for the state equation variance
+kappa <- 0.96       # Decay factor for measurement error variance
+eta <- 0.99         # Forgetting factor for DPS (dynamic prior selection) and DMA
 
 # Please choose:
-p = 4              # p is number of lags in the VAR part
-nos = 1            # number of subsets to consider (default is 3, i.e. 3, 7, and 25 variable VARs)
-                   # if nos=1 you might want a single model. Which one is this?
-single = 3         # 1: 3 variable VAR
-                   # 2: 7 variable VAR
-                   # 3: 25 variable VAR
-
-prior = 1          # 1: Use Koop-type Minnesota prior
-                   # 2: Use Litterman-type Minnesota prior
-
+p <- 2              # p is number of lags in the VAR part
+nos <- 3            # number of subsets to consider (default is 3, i.e. 3, 7, and 25 variable VARs)
+                    # if nos=1 you might want a single model. Which one is this?
+single <- 1         # 1: 3 variable VAR
+                    # 2: 7 variable VAR
+                    # 3: 25 variable VAR
+prior <- 1          # 1: Use Koop-type Minnesota prior
+                    # 2: Use Litterman-type Minnesota prior
 # Forecasting
-first_sample_ends = 1974.75 # The end date of the first sample in the 
+first_sample_ends <- 1974.75 # The end date of the first sample in the 
 # recursive exercise (default value: 1969:Q4)
 # NO CHOICE OF FORECAST HORIZON, h=1 IN ALL INSTANCES OF THIS CODE
 
 # Choose which results to print
 # NOTE: CHOOSE ONLY 0/1 (FOR NO/YES) VALUES!
-print_fore = 1           # summary of forecasting results
-print_coefficients = 1   # plot volatilities and lambda_t (but not theta_t which is huge)
-print_pred = 1           # plot predictive likelihoods over time
-print_Min = 1            # print the Minnesota prior over time
+print_fore <- 1           # summary of forecasting results
+print_coefficients <- 1   # plot volatilities and lambda_t (but not theta_t which is huge)
+print_pred <- 1           # plot predictive likelihoods over time
+print_Min <- 1            # print the Minnesota prior over time
 
 #----------------------------------LOAD DATA----------------------------------------
+library(readr)
 library(readxl)
-DATA_GARY_large_VAR <- read_excel("C:/Users/Berna/Desktop/Projeto de Mestrado/TVP_VAR (KK - 2013)/MATLAB Code/data/DATA_GARY_large_VAR.xlsx", 
+DATA_GARY_large_VAR <- read_excel("C:/Users/Berna/Desktop/Projeto de Mestrado/Large-TVP-VAR/MATLAB functions/Data/DATA_GARY_large_VAR.xlsx", 
                                   skip = 4)
-ydata <- read_delim("C:/Users/Berna/Desktop/Projeto de Mestrado/TVP_VAR (KK - 2013)/MATLAB Code/data/ydata.dat", 
+DATA_GARY_large_VAR <- as.matrix(DATA_GARY_large_VAR)
+View(DATA_GARY_large_VAR)
+
+ydata <- read_delim("C:/Users/Berna/Desktop/Projeto de Mestrado/Large-TVP-VAR/MATLAB functions/Data/ydata.dat", 
                     "\t", escape_double = FALSE, 
                     col_names = FALSE, 
                     trim_ws = TRUE)
-tcode <- read_csv("C:/Users/Berna/Desktop/Projeto de Mestrado/TVP_VAR (KK - 2013)/MATLAB Code/data/tcode.dat", 
+ydata <- as.matrix(ydata)
+View(ydata)
+
+tcode <- read_csv("C:/Users/Berna/Desktop/Projeto de Mestrado/Large-TVP-VAR/MATLAB functions/Data/tcode.dat", 
                   col_names = FALSE)
+tcode <- as.vector(tcode)
+View(tcode)
 
+ynames <- read_excel("C:/Users/Berna/Desktop/Projeto de Mestrado/Large-TVP-VAR/MATLAB functions/Data/ynames.xlsx")
+View(ynames)
 
+##
+vars <- vector(mode = 'list', length = 6)
+for (i in seq_along(vars)) {
+    vars[[i]] <- read_excel("C:/Users/Berna/Desktop/Projeto de Mestrado/Large-TVP-VAR/MATLAB functions/Data/vars.xlsx", 
+                    sheet = i, col_names = FALSE)
+}
+str(vars)
 
-
-
-
-
+#  ------------------------------------------------------------------------
 
 # Create dates variable
-start_date <- 1959.00 #1959.Q1
-end_date <-  2010.25   #2010.Q2
-yearlab <- t(seq(from = 1959, to = 2010.25, by = 0.25))
-T_thres = 64 # find tau_0 (first sample)
+start_date <- 1959.00  # 1959.Q1
+end_date   <- 2010.25  # 2010.Q2
+yearlab    <- seq(from = 1959, to = 2010.25, by = 0.25)
+T_thres    <- which(yearlab == first_sample_ends) # find tau_0 (first sample)
 
 # Transform data to stationarity
 # Y: standard transformations (for iterated forecasts, and RHS of direct forecasts)
-[Y,yearlab] <- transform(ydata,tcode,yearlab)
+Y <- transform(ydata, tcode, yearlab)[[1]]
+yearlab <- transform(ydata, tcode, yearlab)[[2]]
 
 # Select a subset of the data to be used for the VAR
-# if nos>3
-# error('DMA over too many models, memory concerns...')
-# end
-# 
-Y1 <- vector(mode = 'list', length = 1)
-# Ytemp = standardize1(Y,T_thres);
-# M = zeros(nos,1);
-# for ss = 1:nos
-#     if nos ~= 1 
-#         single = ss;
-# end
-# select_subset = vars{single,1};
-# Y1{ss,1} = Ytemp(:,select_subset);
-# M(ss,1) = max(size(select_subset)); # M is the dimensionality of Y
-# end
-# t = size(Y1{1,1},1);
+if (nos > 3) {
+    stop('DMA over too many models, memory concerns...')
+}
+
+Y1 <- vector(mode = 'list', length = nos)
+Ytemp <- standardize1(Y, T_thres)
+M <- vector(mode = 'list', length = nos)
+for (ss in 1:nos) {
+    if (nos != 1) {
+        single <- ss
+    }
+    select_subset <- vars[[ss]]
+    Y1[[ss]] <- Ytemp[ , unlist(select_subset)] 
+    M[[ss]] <- max(nrow(select_subset), ncol(select_subset)) # M is the dimensionality of Y
+}
+t <- nrow(Y1[[1]])
 
 # The first nfocus variables are the variables of interest for forecasting
-#nfocus = 3
+nfocus <- 3
 
 # ===================================| VAR EQUATION |==============================
 # Generate lagged Y matrix. This will be part of the X matrix
-x_t <- vector(mode = 'list', length = 1)
-x_f <- vector(mode = 'list', length = 1)
-y_t <- vector(mode = 'list', length = 1)
-K <- 0
-for (i in 1:nos) { #ss=1:nos
-    ylag <- mlag2(Y1[[ss]], p) 
+x_t <- vector(mode = 'list', length = nos)
+x_f <- vector(mode = 'list', length = nos)
+y_t <- vector(mode = 'list', length = nos)
+K   <- vector(mode = 'list', length = nos)
+for (ss in 1:nos) { #ss=1:nos
+    ylag <- mlag2(Y1[[ss]], p)
     ylag <- ylag[(p + 1):nrow(ylag), ]
-    [temp, kk] <- create_RHS(ylag, M[i], p, t)
-    x_t[i, 1]  <- temp
-    K[i, 1]    <- kk
-    x_f[i, 1]  <- ylag
-    y_t[i,1]   <- Y1[i, 1][(p + 1):nrow(ylag), ]
+    temp <- create_RHS(ylag, M[[ss]], p, t)[['x_t']]
+    kk   <- create_RHS(ylag, M[[ss]], p, t)[['K']]
+    x_t[[ss]] <- temp
+    K[[ss]]   <- kk
+    x_f[[ss]] <- ylag
+    y_t[[ss]] <- Y1[[ss]][1:nrow(ylag), ] # check this lines later for p!=2. 
 }
 
-yearlab = yearlab[(p + 1):nrow(yearlab)]
+yearlab <- yearlab[-c(1:p)] # and this too!
 # Time series observations
-t <- length(y_t[[1]])
+t <- nrow(y_t[[1]]) 
 
 #----------------------------PRELIMINARIES---------------------------------
 #========= PRIORS:
@@ -134,30 +121,44 @@ nom <- length(gamma)  # This variable defines the number of DPS models
 #-------- Now set prior means and variances (_prmean / _prvar)
 theta_0_prmean <- vector('list', length = nos)
 theta_0_prvar <-  vector('list', length = nos)
+Sigma_0 <- vector('list', length = nos)
+for (list in seq_along(theta_0_prmean)) {
+    theta_0_prmean[[list]] <- matrix(data = NA, nrow = K[[list]], ncol = nom)
+}
+for (list in seq_along(theta_0_prvar)) {
+    theta_0_prvar[[list]] <- array(data = NA, dim = c(K[[list]], K[[list]], nom))
+}
 for (ss in 1:nos) {
     if (prior == 1) {            # 1) "No dependence" prior
-        for (i in 1:nom) { # what a FUCK is nomcell?!?!
-            [prior_mean,prior_var] = Minn_prior_KOOP(alpha_bar, gamma[i], M[ss], p, K[ss])   
-            theta_0_prmean[[ss]][ , i] <- prior_mean
-            theta_0_prvar[[ss]][ , ,i] <- prior_var
+        #for (list in seq_along(theta_0_prmean)) {
+        #    theta_0_prmean[[list]] <- matrix(data = NA, nrow = K[[list]], ncol = nom)
+        #}
+        #for (list in seq_along(theta_0_prvar)) {
+        #    theta_0_prvar[[list]] <- array(data = NA, dim = c(K[[list]], K[[list]], nom))
+        #}
+        #prior_out <- vector('list', length = nom)
+        for (i in 1:nom) {       
+            prior_out  <- Minn_prior_KOOP(alpha_bar, gamma[i], M[[ss]], p, K[[ss]])
+            theta_0_prmean[[ss]][ , i]  <- prior_out$a_prior
+            theta_0_prvar[[ss]][ , , i] <- prior_out$V_prior
         }
-        Sigma_0[[ss]] <- cov(y_t[[ss]][1:T_thres, ])      # Initialize the measurement 
-                                                                # covariance matrix (Important!)
+        Sigma_0[[ss]] <- cov(y_t[[ss]][1:T_thres, ])  # Initialize the measurement covariance matrix (Important!)
     } else if (prior == 2) {     # 2) Full Minnesota prior
         for (i in 1:nom) {
-            [prior_mean,prior_var,sigma_var] = Minn_prior_LITT(y_t[[ss]][1:T_thres, ],
-                                                               x_f[[ss]][1:T_thres, ],
-                                                               alpha_bar,
-                                                               gamma(i),
-                                                               M(ss),
-                                                               p,
-                                                               K(ss),
-                                                               T_thres)   
-            theta_0_prmean[[ss, 1]][ ,i]  <- prior_mean
-            theta_0_prvar[[ss, 1]][ , ,i] <- prior_var
+            prior_out <-  Minn_prior_LITT(y_t[[ss]][1:T_thres, ],
+                                          x_f[[ss]][1:T_thres, ],
+                                          alpha_bar,
+                                          gamma[i],
+                                          M[[ss]],
+                                          p,
+                                          K[[ss]],
+                                          T_thres)
+            # sigma_var  <- prior_out[['Sigma_0']]   
+            theta_0_prmean[[ss]][ , i]  <- prior_out$prior_mean
+            theta_0_prvar[[ss]][ , , i] <- prior_out$prior_var
         }
         #Sigma_0{ss,1} = sigma_var; # Initialize the measurement covariance matrix (Important!)
-        Sigma_0[[ss, 1]] <- cov(y_t[[ss, 1]][1:T_thres, ])
+        Sigma_0[[ss]] <- cov(y_t[[ss]][1:T_thres, ])
     }
 }
 
@@ -167,31 +168,60 @@ for (ss in 1:nos) {
     if (forgetting == 1) {
         # CASE 1: Choose the forgetting factor   
         inv_lambda <- 1 / lambda
-        lambda_t[[ss, 1]] <- lambda * matrix(data = 1, nrow = t, ncol = nom) 
+        lambda_t[[ss]] <- lambda * matrix(data = 1, nrow = t, ncol = nom) 
     } else if (forgetting == 2) {
         # CASE 2: Use a variable (estimated) forgetting factor
         lambda_min <- 0.97
         inv_lambda <- 1 / 0.99
         alpha <- 1
         LL <- 1.1
-        lambda_t[[ss, 1]] <- matrix(data = 0, nrow = t, ncol = nom)
+        lambda_t[[ss]] <- matrix(data = 0, nrow = t, ncol = nom)
     } else {
         stop('Wrong specification of forgetting procedure')
     }
 }
 
 # Initialize matrices
-theta_pred    <- vector(mode = 'list', length = nos)   
+sum_prob_omega <-  vector(mode = 'list', length = nos)
+
+theta_pred    <- vector(mode = 'list', length = nos) 
+for (list in seq_along(theta_pred)) { 
+    theta_pred[[list]] <- array(data = NA, dim = c(K[[list]], t, nom)) 
+}
+
 theta_update  <- vector(mode = 'list', length = nos)
 R_t           <- vector(mode = 'list', length = nos)
+for (list in seq_along(R_t)) { 
+    R_t[[list]] <- array(data = NA, dim = c(K[[list]], t, nom)) 
+}
+
 S_t           <- vector(mode = 'list', length = nos)
 y_t_pred      <- vector(mode = 'list', length = nos)
+for (list in seq_along(y_t_pred)) { 
+    y_t_pred[[list]] <- array(data = NA, dim = c(M[[list]], t, nom)) 
+}
+
 e_t           <- vector(mode = 'list', length = nos)
+for (list in seq_along(e_t)) { 
+    e_t[[list]] <- array(data = NA, dim = c(M[[list]], t, nom)) 
+}
+
 A_t           <- vector(mode = 'list', length = nos)
+
 V_t           <- vector(mode = 'list', length = nos)
+for (list in seq_along(V_t)) { 
+    V_t[[list]] <- array(data = NA, dim = c(M[[list]], M[[list]], t, nom))  
+}
 y_fore        <- vector(mode = 'list', length = nos)
 omega_update  <- vector(mode = 'list', length = nos)
+for (list in seq_along(omega_update)) { 
+    omega_update[[list]] <- matrix(data = NA, nrow = t, ncol = nom) 
+}
 omega_predict <- vector(mode = 'list', length = nos)
+for (list in seq_along(omega_predict)) { 
+    omega_predict[[list]] <- matrix(data = NA, nrow = t, ncol = nom) 
+}
+
 ksi_update    <- matrix(data = 0, nrow = t, ncol = nos)
 ksi_predict   <- matrix(data = 0, nrow = t, ncol = nos)
 w_t           <- vector(mode = 'list', length = nos) 
@@ -225,11 +255,9 @@ for (irep in 1:t) {
         # Find sum of probabilities for DPS
         if (irep > 1) {
             sum_prob_omega[[ss]] <- sum((omega_update[[ss]][irep - 1, ]) ^ eta)  
-            # this is the sum of the nom model probabilities 
-            # (all in the power of the forgetting factor 'eta')
+            # this is the sum of the nom model probabilities (all in the power of the forgetting factor 'eta')
         }
-        
-        for (k in 1:nom) { # LOOP FOR 1 TO NOM VAR MODELS WITH DIFFERENT DEGREE OF SHRINKAGE
+        for (k in 1:nom) { # LOOP FOR 1:NOM VAR MODELS WITH DIFFERENT DEGREES OF SHRINKAGE
             
             # Predict
             if (irep == 1) {
@@ -242,18 +270,17 @@ for (irep in 1:t) {
                 omega_predict[[ss]][irep, k] <- ((omega_update[[ss]][irep - 1, k]) ^ eta + offset) /
                     (sum_prob_omega[[ss]] + offset)
             }
-            xx = x_t[[ss]][((irep - 1) %*% M(ss) + 1):(irep %*% M(ss)), ]
-            y_t_pred[[ss]][ , irep, k] <- xx %*% theta_pred[[ss]][ , irep, k] 
+            xx <- x_t[[ss]][((irep - 1) * M[ss, ] + 1):(irep * M[[ss]]), ]
             # this is one step ahead prediction
-            
-            # Prediction error
+            y_t_pred[[ss]][ , irep, k] <- xx %*% theta_pred[[ss]][ , irep, k] 
+
+            # Prediction error. This is one step ahead prediction error
             e_t[[ss]][ , irep, k] <- t(y_t[[ss]][irep, ]) - y_t_pred[[ss]][ , irep, k]
-            # this is one step ahead prediction error
-            
+
             # Update forgetting factor
             if (forgetting == 2) {
                 lambda_t[[ss]][irep, k] <- lambda_min + 
-                    (1 - lambda_min) %*% (LL ^ (-round(alpha %*% t(e_t[[ss]][1:nfocus, irep, k]) %*% e_t[[ss]][1:nfocus, irep, k])))
+                    (1 - lambda_min) %*% (LL ^ (-round(alpha * t(e_t[[ss]][1:nfocus, irep, k]) %*% e_t[[ss]][1:nfocus, irep, k])))
             }
             
             # first update V[t], see the part below equation (10)
@@ -271,8 +298,8 @@ for (irep in 1:t) {
             # update theta[t] and S[t]
             Rx <- R_t[[ss]][ , , k] %*% t(xx)
             KV <- squeeze(V_t[[ss]][ , , irep, k]) + xx %*% Rx 
-            kG = Rx / KV
-            theta_update[[ss]][ , irep, k] <- theta_pred[[ss]][ , irep, k] + (KG %*% e_t[[ss, 1]][ , irep, k])
+            KG <- Rx / KV
+            theta_update[[ss]][ , irep, k] <- theta_pred[[ss]][ , irep, k] + (KG %*% e_t[[ss]][ , irep, k])
             S_t[[ss]][ , , k] <- R_t[[ss]][ , ,k] - KG %*% (xx %*% R_t[[ss]][ , , k])
             
             # Find predictive likelihood based on Kalman filter and update DPS weights     
@@ -300,7 +327,7 @@ for (irep in 1:t) {
             splace <- 0
             biga <- 0
             for (ii in 1:p) {
-                for (iii in 1:M[ss]) {            
+                for (iii in 1:M[[ss]]) {            
                     biga[iii, ((ii - 1) * M[ss] + 1):(ii * M[ss])] <- t(bbtemp(splace + 1:splace + M[ss], 1))
                     splace <- splace + M[ss]
                 }
@@ -377,7 +404,7 @@ for (irep in 1:t) {
         MSFE_DMA[irep - T_thres + 1, , ii] <- (Yraw_f[ss][ii, 1:nfocus] - squeeze(y_t_DMA[ii, , irep - T_thres + 1])) ^ 2
         for (j in 1:nfocus) {
             logpl_DMA[irep - T_thres + 1, j, ii] <- log(mvnpdfs(t(Yraw_f[ss][ii, j]), t(y_t_DMA[ii, j, irep - T_thres + 1]), variance_DMA[j, j]) + offset)
-            logpl_DMS[irep-T_thres   + 1, j, ii] <- log(mvnpdfs(t(Yraw_f[ss][ii, j]), t(y_t_DMS[ii, j, irep - T_thres + 1]), variance_DMS[j, j]) + offset)
+            logpl_DMS[irep - T_thres   + 1, j, ii] <- log(mvnpdfs(t(Yraw_f[ss][ii, j]), t(y_t_DMS[ii, j, irep - T_thres + 1]), variance_DMS[j, j]) + offset)
         }
     }
 }
