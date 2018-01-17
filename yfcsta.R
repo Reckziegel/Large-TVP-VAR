@@ -1,10 +1,10 @@
-#  %      Input:
-#     %      y == transformed series
+# %      Input:
+# %      y == transformed series
 # %      tcode == transformation code
 # %      nph == forecast horizon
 # % 
 # %   -- Tcodes:
-#     %             1 Level
+# %             1 Level
 # %             2 First Difference
 # %             3 Second Difference
 # %             4 Log-Level
