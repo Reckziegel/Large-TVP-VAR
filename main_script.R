@@ -6,7 +6,7 @@ eta <- 0.99         # Forgetting factor for DPS (dynamic prior selection) and DM
 
 # Please choose:
 p <- 2              # p is number of lags in the VAR part
-nos <- 2            # number of subsets to consider (default is 3, i.e. 3, 7, and 25 variable VARs)
+nos <- 3            # number of subsets to consider (default is 3, i.e. 3, 7, and 25 variable VARs)
                     # if nos=1 you might want a single model. Which one is this?
 single <- 1         # 1: 3 variable VAR
                     # 2: 7 variable VAR
