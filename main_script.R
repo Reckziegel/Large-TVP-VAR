@@ -1,12 +1,12 @@
 #-------------------------------PRELIMINARIES--------------------------------------
-forgetting <- 1     # 1: use constant factor 2: use variable factor
+forgetting <- 2     # 1: use constant factor 2: use variable factor
 lambda <- 0.99      # Forgetting factor for the state equation variance
 kappa <- 0.96       # Decay factor for measurement error variance
 eta <- 0.99         # Forgetting factor for DPS (dynamic prior selection) and DMA
 
 # Please choose:
-p <- 2              # p is number of lags in the VAR part
-nos <- 3            # number of subsets to consider (default is 3, i.e. 3, 7, and 25 variable VARs)
+p <- 1              # p is number of lags in the VAR part
+nos <- 2            # number of subsets to consider (default is 3, i.e. 3, 7, and 25 variable VARs)
                     # if nos=1 you might want a single model. Which one is this?
 single <- 1         # 1: 3 variable VAR
                     # 2: 7 variable VAR
@@ -17,13 +17,6 @@ prior <- 1          # 1: Use Koop-type Minnesota prior
 first_sample_ends <- 1974.75 # The end date of the first sample in the 
 # recursive exercise (default value: 1969:Q4)
 # NO CHOICE OF FORECAST HORIZON, h=1 IN ALL INSTANCES OF THIS CODE
-
-# Choose which results to print
-# NOTE: CHOOSE ONLY 0/1 (FOR NO/YES) VALUES!
-print_fore <- 1           # summary of forecasting results
-print_coefficients <- 1   # plot volatilities and lambda_t (but not theta_t which is huge)
-print_pred <- 1           # plot predictive likelihoods over time
-print_Min <- 1            # print the Minnesota prior over time
 
 #----------------------------------LOAD DATA----------------------------------------
 library(readr)
@@ -77,7 +70,7 @@ if (nos > 3) {
 Y1 <- vector(mode = 'list', length = nos)
 Ytemp <- standardize1(Y, T_thres)
 M <- vector(mode = 'list', length = nos)
-for (ss in 1:nos) {
+for (ss in seq(nos)) {
     if (nos != 1) {
         single <- ss
     }
@@ -96,15 +89,15 @@ x_t <- vector(mode = 'list', length = nos)
 x_f <- vector(mode = 'list', length = nos)
 y_t <- vector(mode = 'list', length = nos)
 K   <- vector(mode = 'list', length = nos)
-for (ss in 1:nos) { #ss=1:nos
+for (ss in seq(nos)) { #ss=1:nos
     ylag <- mlag2(Y1[[ss]], p)
-    ylag <- ylag[(p + 1):nrow(ylag), ]
+    ylag <- ylag[(p + 1):nrow(ylag), , drop = FALSE]
     temp <- create_RHS(ylag, M[[ss]], p, t)[['x_t']]
     kk   <- create_RHS(ylag, M[[ss]], p, t)[['K']]
     x_t[[ss]] <- temp
     K[[ss]]   <- kk
     x_f[[ss]] <- ylag
-    y_t[[ss]] <- Y1[[ss]][1:nrow(ylag), ] # check this lines later for p!=2. 
+    y_t[[ss]] <- Y1[[ss]][(p + 1):nrow(Y1[[ss]]), ] # check this lines later for p!=2. 
 }
 
 yearlab <- yearlab[-c(1:p)] # and this too!
@@ -128,16 +121,16 @@ for (list in seq_along(theta_0_prmean)) {
 for (list in seq_along(theta_0_prvar)) {
     theta_0_prvar[[list]] <- array(data = NA, dim = c(K[[list]], K[[list]], nom))
 }
-for (ss in 1:nos) {
+for (ss in seq(nos)) {
     if (prior == 1) {            # 1) "No dependence" prior
-        for (i in 1:nom) {       
+        for (i in seq(nom)) {       
             prior_out  <- Minn_prior_KOOP(alpha_bar, gamma[i], M[[ss]], p, K[[ss]])
             theta_0_prmean[[ss]][ , i]  <- prior_out$a_prior
             theta_0_prvar[[ss]][ , , i] <- prior_out$V_prior
         }
-        Sigma_0[[ss]] <- cov(y_t[[ss]][1:T_thres, ])  # Initialize the measurement covariance matrix (Important!)
+        Sigma_0[[ss]] <- cov(y_t[[ss]][seq(T_thres), ])  # Initialize the measurement covariance matrix (Important!)
     } else if (prior == 2) {     # 2) Full Minnesota prior
-        for (i in 1:nom) {
+        for (i in seq(nom)) {
             prior_out <-  Minn_prior_LITT(y_t[[ss]][1:T_thres, ],
                                           x_f[[ss]][1:T_thres, ],
                                           alpha_bar,
@@ -151,13 +144,13 @@ for (ss in 1:nos) {
             theta_0_prvar[[ss]][ , , i] <- prior_out$prior_var
         }
         #Sigma_0{ss,1} = sigma_var; # Initialize the measurement covariance matrix (Important!)
-        Sigma_0[[ss]] <- cov(y_t[[ss]][1:T_thres, ])
+        Sigma_0[[ss]] <- cov(y_t[[ss]][seq(T_thres), ])
     }
 }
 
 # Define forgetting factor lambda:
 lambda_t <- vector('list', length = nos)
-for (ss in 1:nos) {
+for (ss in seq(nos)) {
     if (forgetting == 1) {
         # CASE 1: Choose the forgetting factor   
         inv_lambda <- 1 / lambda
@@ -175,7 +168,7 @@ for (ss in 1:nos) {
 }
 
 # Initialize matrices
-sum_prob_omega <-  vector(mode = 'list', length = nos)
+sum_prob_omega <- vector(mode = 'list', length = nos)
 
 theta_pred <- vector(mode = 'list', length = nos) 
 for (list in seq_along(theta_pred)) { 
@@ -207,8 +200,8 @@ for (list in seq_along(e_t)) {
     e_t[[list]] <- array(data = NA, dim = c(M[[list]], t, nom)) 
 }
 
-A_t <- vector(mode = 'list', length = nos)
-for (list in seq_along(A_t)) {
+A_t <- vector(mode = 'list', length = nos) # this is different from the matlab code. Koop's uses just one matrix for  
+for (list in seq_along(A_t)) {             # all VAR dimmensions and I am using one list for each dimmension.
     A_t[[list]] <- matrix(data = NA, nrow = M[[list]], ncol = M[[list]])
 }
 
@@ -234,7 +227,7 @@ for (list in seq_along(omega_predict)) {
 
 Yraw_f <- vector(mode = 'list', length = nos)
 for (list in seq_along(Yraw_f)) { 
-    Yraw_f[[list]] <- matrix(data = NA, nrow = 1, ncol = M[[list]]) # gambiarra. Arrumar depois para não dar problema. 
+    Yraw_f[[list]] <- matrix(data = NA, nrow = 1, ncol = M[[list]]) 
 }
 
 ksi_update  <- matrix(data = 0, nrow = t, ncol = nos)
@@ -279,29 +272,32 @@ for (list in seq_along(Minn_gamms)) {
     Minn_gamms[[list]] <- matrix(data = NA, nrow = t - T_thres + 1, ncol = 1)
 }
 
-#bbtemp <- matrix(data = NA, ncol = 1, nrow = 1250) # gambiarra. Arrumar depois. 
 bbtemp <- vector(mode = 'list', length = nos)
-bbtemp[[1]] <- matrix(data = 0, nrow = 18, ncol = 1)
-bbtemp[[2]] <- matrix(data = 0, nrow = 98, ncol = 1)
+for (list in seq_along(bbtemp)) {
+    bbtemp[[list]] <- matrix(data = 0, nrow = (M[[list]] * M[[list]]) * 2, ncol = 1)
+}
 
 biga <- vector(mode = 'list', length = nos)
 for (list in seq_along(biga)) {
     biga[[list]] <- matrix(data = 0, nrow = M[[list]], ncol = M[[list]] * p)
 }
 
-#weight_pred <- array(data = 0, dim = c(1, 3, 1, 2000))
-#temp_predict <- array(data = 0, dim = c(1, 3, 1, 2000))
 
 # ======================= BEGIN KALMAN FILTER ESTIMATION =======================
 
-for (irep in 1:t) {
-    for (ss in 1:nos) {  # LOOP FOR 1 TO NOS VAR MODELS OF DIFFERENT DIMENSIONS
+# create progress bar
+pb <- txtProgressBar(min = 0, max = t, style = 3)
+
+for (irep in seq(t)) {
+    Sys.sleep(0.01)
+    setTxtProgressBar(pb, irep)
+    for (ss in seq(nos)) {  # LOOP FOR 1 TO NOS VAR MODELS OF DIFFERENT DIMENSIONS
         # Find sum of probabilities for DPS
         if (irep > 1) {
             sum_prob_omega[[ss]] <- sum((omega_update[[ss]][irep - 1, ]) ^ eta)  
             # this is the sum of the nom model probabilities (all in the power of the forgetting factor 'eta')
         }
-        for (k in 1:nom) { # LOOP FOR 1:NOM VAR MODELS WITH DIFFERENT DEGREES OF SHRINKAGE
+        for (k in seq(nom)) { # LOOP FOR 1:NOM VAR MODELS WITH DIFFERENT DEGREES OF SHRINKAGE
             # Predict
             if (irep == 1) {
                 theta_pred[[ss]][ , irep, k] <- theta_0_prmean[[ss]][ , k]         
@@ -320,11 +316,11 @@ for (irep in 1:t) {
 
             # Update forgetting factor
             if (forgetting == 2) {
-                lambda_t[[ss]][irep, k] <- lambda_min + (1 - lambda_min) * (LL ^ (-round(alpha * t(e_t[[ss]][1:nfocus, irep, k]) %*% e_t[[ss]][1:nfocus, irep, k])))
+                lambda_t[[ss]][irep, k] <- lambda_min + (1 - lambda_min) * (LL ^ (-round(alpha * t(e_t[[ss]][1:nfocus, irep, k]) %*% e_t[[ss]][1:nfocus, irep, k, drop = FALSE])))
             }
             
             # first update V[t], see the part below equation (10)
-            A_t <- e_t[[ss]][ , irep, k] %*% t(e_t[[ss]][ , irep, k])
+            A_t[[ss]] <- e_t[[ss]][ , irep, k] %*% t(e_t[[ss]][ , irep, k])
             if (irep == 1) {
                 V_t[[ss]][ , , irep, k] <- kappa * Sigma_0[[ss]]
             } else {
@@ -347,7 +343,7 @@ for (irep in 1:t) {
             } else {
                 variance <- V_t[[ss]][1:nfocus, 1:nfocus, irep, k] + xx[1:nfocus, ] %*% Rx[ , 1:nfocus]
             }
-            if (any(eigen(variance)$values < 0)) {
+            if (any(eigen(variance, only.values = TRUE)$values < 0)) {
                 variance <- abs(diag(diag(variance)))
             }
             ymean <- y_t_pred[[ss]][1:nfocus, irep, k]
@@ -355,34 +351,38 @@ for (irep in 1:t) {
             f_l[k, 1] <- densidade(x = ytemp, mean = ymean, sigma = variance)
             w_t[[ss]][ , irep, k] <- omega_predict[[ss]][irep, k] %*% f_l[k, 1]
             
-            # forecast simulation for h=1 only (instead of saving only the mean and variance, 
-            # ... I just generate 2000 samples from the predictive density
+            # forecast simulation for h=1 only. Instead of saving only the mean and variance. 
+            # I just generate 2000 samples from the predictive density
             variance2 <- V_t[[ss]][ , , irep, k] + xx %*% Rx
-            if (any(eigen(variance2)$values < 0)) { 
+            if (any(eigen(variance2, only.values = TRUE)$values < 0)) { 
                 variance2 <- abs(diag(diag(variance2)))
             }
             bbtemp[[ss]] <- as.matrix(theta_update[[ss]][(M[[ss]] + 1):K[[ss]], irep, k])  # get the draw of B(t) at time i=1,...,T  (exclude intercept)                   
             splace <- 0
             #biga <- 0
-            for (ii in 1:p) {
-                for (iii in seq_along(M)) {            
-                    biga[[ss]][iii, ((ii - 1) * M[[ss]] + 1):(ii * M[[ss]])] <- t(bbtemp[[ss]][(splace + 1):(splace + M[[ss]]), 1])
+            for (ii in seq(p)) {
+                for (iii in seq(M[[ss]])) {            
+                    biga[[ss]][iii, ((ii - 1) * M[[ss]] + 1):(ii * M[[ss]])] <- t(bbtemp[[ss]][(splace + 1):(splace + M[[ss]]), ])
                     splace <- splace + M[[ss]]
                 }
             }
             beta_fore <- rbind(t(theta_update[[ss]][1:M[[ss]], irep, k]), t(biga[[ss]]))
-            ymean2 <- t(c(1 , y_t[[ss]][irep, ], x_f[[ss]][irep, 1:M[[ss]] * (p - 1)]) %*% beta_fore)
-            y_fore[[ss]][1, , k, ] <- repmat(ymean2, 1, 2000) + t(chol(variance2)) %*% aux1[[ss]] # This line is wrong. Check latter.
+            if (p == 1) {
+                ymean2 <- t(c(1, y_t[[ss]][irep, ]) %*% beta_fore) # x_f[[ss]][irep, 1:(M[[ss]] * (p - 1))
+            } else {
+                ymean2 <- t(c(1, y_t[[ss]][irep, ], x_f[[ss]][irep, 1:(M[[ss]] * (p - 1))]) %*% beta_fore)
+            }
+            y_fore[[ss]][1, , k, ] <- repmat(ymean2, 1, 2000) + t(chol(variance2)) %*% aux1[[ss]] 
         } # End cycling through nom models with different shrinkage factors
         
         # First calculate the denominator of Equation (19) (the sum of the w's)
         sum_w_t <- 0   
-        for (k_2 in 1:nom) {       
+        for (k_2 in seq(nom)) {       
             sum_w_t <- sum_w_t + w_t[[ss]][ , irep, k_2] 
         }
         
         # Then calculate the DPS probabilities  
-        for (k_3 in 1:nom) {
+        for (k_3 in seq(nom)) {
             omega_update[[ss]][irep, k_3] <- (w_t[[ss]][ , irep, k_3] + offset) / (sum_w_t + offset)  # this is Equation (19)
         }
         max_prob[[ss]] <- max(omega_update[[ss]][irep, ])
@@ -396,25 +396,24 @@ for (irep in 1:t) {
         if (irep <= (t - nfore)) {
             Yraw_f[[ss]] <- y_t[[ss]][(irep + 1):(irep + nfore), ] #Pseudo out-of-sample observations                   
         } else {
-            Yraw_f[[ss]] <- rbind(y_t[[ss]][(irep + 1 - 1):t, ], # gambiarra.  
-                                  matrix(data = NA, nrow = nfore - (t - irep), ncol = M[[ss]])) 
+            Yraw_f[[ss]] <- y_t[[ss]][(irep + 1 - 1):t, ] # gambiarra.  
         }
     }
     
     # First calculate the denominator of Equation (19) (the sum of the w's)
     sum_w2_t <- 0   
-    for (k_2 in 1:nos) {       
+    for (k_2 in seq(nos)) {       
         sum_w2_t <- sum_w2_t + w2_t[irep, k_2]
     }
     
     # Then calculate the DPS probabilities
-    for (k_3 in 1:nos) {
+    for (k_3 in seq(nos)) {
         ksi_update[irep, k_3] <- (w2_t[irep, k_3] + offset) / (sum_w2_t + offset)  # this is Equation (19)
     }
     
     # Find best model for DMS
     max_prob_DMS[irep, ] <- max(ksi_update[irep, ])
-    ss_max <- which.max(ksi_update[irep, ]) # check the dimensions of this thing.
+    ss_max <- which.max(ksi_update[irep, ]) 
     index_DMA[irep, 1] <- k_max[[ss_max]]
     
     # Now we cycled over NOM and NOS models, do DMA-over-DPS
@@ -422,7 +421,7 @@ for (irep in 1:t) {
         ii <- nfore
         weight_pred <- 0 * y_fore[[ss]][ii, 1:nfocus, k_max[[ss]], ]
         # DPS-DMA prediction
-        for (ss in 1:nos) {
+        for (ss in seq(nos)) {
             temp_predict <- y_fore[[ss]][ii, 1:nfocus, k_max[[ss]], ] * ksi_update[irep, ss]
             weight_pred  <- weight_pred + temp_predict
             Minn_gamms[[ss]][irep - T_thres + 1, 1] <- gamma[k_max[[ss]]]
@@ -435,29 +434,33 @@ for (irep in 1:t) {
         variance_DMS <- cov(t(squeeze(y_fore[[ss_max]][ii, 1:nfocus, k_max[[ss_max]], ])))
 
 
-        LOG_PL_DMS[irep - T_thres + 1, ii] <- log(densidade(x     = t(Yraw_f[[ss]][1:nfocus]),
-                                                          mean    = y_t_DMS[ii, , irep - T_thres + 1],
-                                                          sigma = variance_DMS)
-                                                  + offset)
+        LOG_PL_DMS[irep - T_thres + 1, ii] <- densidade(x     = t(Yraw_f[[ss]][1:nfocus]),
+                                                        mean  = y_t_DMS[ii, , irep - T_thres + 1],
+                                                        sigma = variance_DMS, 
+                                                        log   = TRUE)
+                                              + offset
         MAFE_DMS[irep - T_thres + 1, , ii] <- abs(Yraw_f[[ss]][1:nfocus] - squeeze(y_t_DMS[ii, , irep - T_thres + 1]))
         MSFE_DMS[irep - T_thres + 1, , ii] <- (Yraw_f[[ss]][1:nfocus] - squeeze(y_t_DMS[ii, , irep - T_thres + 1])) ^ 2
 
 
-        LOG_PL_DMA[irep - T_thres + 1, ii] <- log(densidade(x     = t(Yraw_f[[ss]][1:nfocus]),
-                                                          mean   = y_t_DMA[ii, , irep - T_thres + 1],
-                                                          sigma = variance_DMA)
-                                                  + offset)
+        LOG_PL_DMA[irep - T_thres + 1, ii] <- densidade(x     = t(Yraw_f[[ss]][1:nfocus]),
+                                                        mean  = y_t_DMA[ii, , irep - T_thres + 1],
+                                                        sigma = variance_DMA, 
+                                                        log   = TRUE) 
+                                              + offset
         MAFE_DMA[irep - T_thres + 1, , ii] <- abs(Yraw_f[[ss]][1:nfocus] - squeeze(y_t_DMA[ii, , irep - T_thres + 1]))
         MSFE_DMA[irep - T_thres + 1, , ii] <- (Yraw_f[[ss]][1:nfocus] - squeeze(y_t_DMA[ii, , irep - T_thres + 1])) ^ 2
-        for (j in 1:nfocus) {
-            logpl_DMA[irep - T_thres + 1, j, ii] <- log(densidade(x     = t(Yraw_f[[ss]][j]),
-                                                                mean    = y_t_DMA[ii, j, irep - T_thres + 1],
-                                                                sigma = variance_DMA[j, j])
-                                                        + offset)
-            logpl_DMS[irep - T_thres + 1, j, ii] <- log(densidade(x     = t(Yraw_f[[ss]][j]),
-                                                                mean    = y_t_DMS[ii, j, irep - T_thres + 1],
-                                                                sigma = variance_DMS[j, j])
-                                                        + offset)
+        for (j in seq(nfocus)) {
+            logpl_DMA[irep - T_thres + 1, j, ii] <- densidade(x     = t(Yraw_f[[ss]][j]),
+                                                              mean  = y_t_DMA[ii, j, irep - T_thres + 1],
+                                                              sigma = variance_DMA[j, j], 
+                                                              log   = TRUE)
+                                                    + offset
+            logpl_DMS[irep - T_thres + 1, j, ii] <- densidade(x     = t(Yraw_f[[ss]][j]),
+                                                              mean  = y_t_DMS[ii, j, irep - T_thres + 1],
+                                                              sigma = variance_DMS[j, j], 
+                                                              log   = TRUE)
+                                                    + offset
         }
     }
 }
