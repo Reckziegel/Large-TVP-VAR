@@ -1,7 +1,7 @@
-densidade <- function (x, mean = rep(0, p), sigma = diag(p), log = FALSE) {
+densidade <- function(x, mean = rep(0, p), sigma = diag(p), log = FALSE) {
     # if (is.vector(x)) 
     #     x <- matrix(x, ncol = length(x))
-    # p <- ncol(x)
+    p <- ncol(x)
     # if (!missing(mean)) {
     #     if (!is.null(dim(mean))) 
     #         dim(mean) <- NULL
@@ -24,11 +24,11 @@ densidade <- function (x, mean = rep(0, p), sigma = diag(p), log = FALSE) {
     else {
         tmp <- backsolve(dec, t(x) - mean, transpose = TRUE)
         rss <- colSums(tmp^2)
-        logretval <- -sum(log(diag(dec))) - 0.5 * p * log(2 * 
-                                                              pi) - 0.5 * rss
+        logretval <- -sum(log(diag(dec))) - 0.5 * p * log(2 * pi) - 0.5 * rss
     }
     names(logretval) <- rownames(x)
     if (log) 
         logretval
     else exp(logretval)
 }
+
